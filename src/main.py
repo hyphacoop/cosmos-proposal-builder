@@ -2,6 +2,7 @@ from datetime import datetime, timezone, timedelta
 import asyncio
 import requests
 import json
+import re
 from nicegui import ui
 import markdownify
 
@@ -9,13 +10,23 @@ version = ''
 tag = ''
 
 chain_endpoints = {
-    'ICS Testnet': 'https://rpc.provider-sentry-01.ics-testnet.polypore.xyz',
-    'Cosmos Hub': 'https://rpc.one.cosmos-mainnet.polypore.xyz'
+    'ICS Testnet': 'https://rpc.provider-sentry-01.hub-testnet.polypore.xyz',
+    'Cosmos Hub': 'https://rpc.sentry-01.cosmoshub-4.polypore.xyz'
 }
 
+TARGET_PLATFORMS = ['darwin-amd64', 'linux-amd64']
+
+def find_platform(name: str):
+    # Match '<...>-darwin-amd64' at the end of the name or before a '/'
+    # e.g. 'gaiad-v29.0.0-darwin-amd64' or './gaiad-darwin-amd64/gaiad', but not '.asc' files
+    for platform in TARGET_PLATFORMS:
+        if re.search(rf'-{platform}(?:$|/)', name):
+            return platform
+    return None
+
 def populate():
-    input_upgrade_name.value = 'v22'
-    input_release_tag.value = input_upgrade_name.value + '.0.0-rc0'
+    input_upgrade_name.value = 'v29.0.0'
+    input_release_tag.value = input_upgrade_name.value
     input_target_time.value = (datetime.now()+timedelta(days=1)).replace(tzinfo=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
     input_upgrade_height.value = '50'
     input_deposit.value = '50100000'
@@ -28,31 +39,39 @@ def generate_upgrade_info():
     tag = input_release_tag.value
     response = requests.get(f'https://api.github.com/repos/cosmos/gaia/releases/tags/{tag}')
     if not response.ok:
+        ui.notify(f'Could not fetch release {tag}', type='negative')
         return
     response = response.json()
     assets = response['assets']
     checksums = {}
     binaries = {}
-    
-    for asset in assets:
-        if 'SHA256SUMS' in asset['name']:
-            # Collect shasums
-            file_request = requests.get(asset['browser_download_url']).text
-            lines = file_request.split('\n')
-            for line in lines:
-                if line:
-                    checksum = line.split()
-                    checksums[checksum[1]] = checksum[0]
 
     for asset in assets:
-        if 'SHA256SUMS' not in asset['name']:
-            target = '/'.join(asset['name'].split('-')[-2:])
-            target = target.split('.')[0]
-            binaries[asset['name']] = {
-                'url': asset['browser_download_url'],
-                'checksum': checksums[asset['name']],
-                'target': target
-            }
+        if 'SHA256SUMS' in asset['name']:
+            # Collect shasums, keyed by platform
+            file_request = requests.get(asset['browser_download_url']).text
+            for line in file_request.splitlines():
+                parts = line.split()
+                if len(parts) != 2:
+                    continue
+                platform = find_platform(parts[1])
+                if platform:
+                    checksums[platform] = parts[0]
+
+    for asset in assets:
+        platform = find_platform(asset['name'])
+        if not platform:
+            continue
+        binaries[platform] = {
+            'url': asset['browser_download_url'],
+            'checksum': checksums.get(platform),
+            'target': platform.replace('-', '/')
+        }
+
+    missing = [p for p in TARGET_PLATFORMS if p not in binaries or not binaries[p]['checksum']]
+    if missing:
+        ui.notify(f'Missing binary or checksum for: {", ".join(missing)}', type='negative')
+        return
 
     # Generate info field
     info_field = {
@@ -123,6 +142,8 @@ def generate_proposal_json():
     description = md_proposal.replace('\n','\r\n')
     height = input_upgrade_height.value
     info_json = generate_upgrade_info()
+    if info_json is None:
+        return
     deposit = input_deposit.value
     denom = input_denom.value
 
@@ -171,11 +192,11 @@ with ui.tab_panels(tabs, value=tab_one).classes('w-full content-left'):
     with ui.tab_panel(tab_two):
         # 2. Height
         with ui.column().classes('full-width'):
-            select_chain = ui.select(['ICS Testnet', 'Cosmos Hub'],
-                                     value='ICS Testnet',
+            select_chain = ui.select(['Hub Testnet', 'Cosmos Hub'],
+                                     value='Hub Testnet',
                                      on_change=lambda e: set_endpoint(e.value)).classes('full-width')
             input_rpc_endpoint = ui.input(label='RPC endpoint',
-                                          placeholder='https://provider-sentry-01.ics-testnet.polypore.xyz').classes('full-width')
+                                          placeholder='https://provider-sentry-01.hub-testnet.polypore.xyz').classes('full-width')
             input_target_time = ui.input(label='Target upgrade time',
                                          placeholder='2023-10-15T14:00:00Z').classes('full-width')
             number_past_blocks = ui.number(label = 'Stop this many blocks in the past',
