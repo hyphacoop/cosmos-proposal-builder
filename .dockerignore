@@ -1,0 +1,6 @@
+.env/
+.venv/
+.git/
+__pycache__/
+*.gif
+.env.deploy
