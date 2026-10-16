@@ -65,6 +65,26 @@ location / {
 }
 ```
 
+To serve the app under a subpath such as `/proposal_builder`, strip the prefix with a trailing slash on `proxy_pass` and pass it to the app in `X-Forwarded-Prefix`, so the page loads its scripts and websocket from the right path:
+
+```nginx
+location = /proposal_builder {
+    return 301 /proposal_builder/;
+}
+
+location /proposal_builder/ {
+    proxy_pass http://127.0.0.1:8080/;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Prefix /proposal_builder;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 86400;
+}
+```
+
 Run a single container: each user's session state lives in that process's memory.
 
 ![Video capture of user interface](proposal-builder.gif)
