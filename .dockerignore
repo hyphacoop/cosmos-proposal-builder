@@ -1,6 +1,8 @@
-.env/
-.venv/
 .git/
-__pycache__/
-*.gif
+node_modules/
+dist/
+coverage/
+.env
 .env.deploy
+*.gif
+*.log

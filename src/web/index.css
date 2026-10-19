@@ -1,0 +1,75 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/typography';
+
+/* Fonts and colours follow the Hypha design system (hyphacoop/design-system tokens). */
+
+@font-face {
+  font-family: 'Work Sans';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('./fonts/WorkSans-VariableFont_wght.woff2') format('woff2');
+}
+
+@theme {
+  /* Work Sans for headings; the system stack for body text, as the design system specifies */
+  --font-heading:
+    'Work Sans', -apple-system, BlinkMacSystemFont, 'avenir next', avenir, 'helvetica neue', helvetica, ubuntu, roboto,
+    noto, 'segoe ui', arial, sans-serif;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'avenir next', avenir, 'helvetica neue', helvetica, ubuntu, roboto, noto,
+    'segoe ui', arial, sans-serif;
+  /* The design system's mono stack without Work Sans, which isn't monospaced and would misalign JSON */
+  --font-mono: consolas, monaco, monospace;
+
+  /* Brand colours */
+  --color-brand: #9900fc; /* Vivid Violet */
+  --color-brand-press: #6b00b0; /* violet shade */
+  --color-highlight: #00ff00; /* Lime, highlights only */
+
+  /* Semantic colours. The design system only defines light pages, so there is no dark theme. */
+  --color-page: #ffffff;
+  --color-surface: #ffffff;
+  --color-sunken: #f4f4f4; /* near-white */
+  --color-wash: #f6ebff; /* violet tint 95, hover surfaces */
+  --color-line: #cccccc; /* moon-gray, default border */
+  --color-ink: #000000;
+  --color-body: #333333; /* dark-gray, body text */
+  --color-muted: #666666; /* gray */
+  --color-accent: #9900fc; /* violet for text, links and borders */
+  /* Not in the design system, which defines no error colour */
+  --color-danger: #c00020;
+}
+
+@layer base {
+  html {
+    /* Keeps native controls (date picker, select, scrollbars) light even when the OS is in dark mode */
+    color-scheme: light;
+  }
+  body {
+    @apply bg-page font-sans text-body antialiased;
+  }
+  ::selection {
+    @apply bg-highlight text-black;
+  }
+}
+
+/* Markdown preview colours */
+.prose {
+  --tw-prose-body: var(--color-body);
+  --tw-prose-headings: var(--color-ink);
+  --tw-prose-lead: var(--color-body);
+  --tw-prose-links: var(--color-accent);
+  --tw-prose-bold: var(--color-ink);
+  --tw-prose-counters: var(--color-muted);
+  --tw-prose-bullets: var(--color-muted);
+  --tw-prose-hr: var(--color-line);
+  --tw-prose-quotes: var(--color-ink);
+  --tw-prose-quote-borders: var(--color-brand);
+  --tw-prose-captions: var(--color-muted);
+  --tw-prose-code: var(--color-ink);
+  --tw-prose-pre-code: var(--color-body);
+  --tw-prose-pre-bg: var(--color-sunken);
+  --tw-prose-th-borders: var(--color-line);
+  --tw-prose-td-borders: var(--color-line);
+}
