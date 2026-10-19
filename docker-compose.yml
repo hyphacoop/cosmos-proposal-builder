@@ -4,5 +4,5 @@ services:
     image: cosmos-proposal-builder:local
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8080:8080"   # only reachable through the host's nginx
-    env_file: .env.deploy
+      # Loopback only, so the app is reachable just through the host's nginx. Set HOST_PORT to use another host port.
+      - "127.0.0.1:${HOST_PORT:-3000}:3000"

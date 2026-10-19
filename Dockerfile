@@ -1,24 +1,30 @@
-# Dockerfile
-FROM python:3.11-slim
-
-ENV PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    OPEN_BROWSER=false \
-    PORT=8080
+FROM node:24-slim AS build
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+COPY package.json package-lock.json ./
+RUN npm ci
 
-COPY src/main.py sample-text.md ./
+COPY . .
+RUN npm run build && npm prune --omit=dev
 
-RUN useradd --create-home --uid 1000 app
-USER app
+FROM node:24-slim
 
-EXPOSE 8080
+ENV NODE_ENV=production \
+    PORT=3000
+
+WORKDIR /app
+
+COPY --from=build /app/package.json ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+
+# The base image's non-root user (uid 1000)
+USER node
+
+EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import os, urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ[\"PORT\"]}/healthz', timeout=4)"
+    CMD ["node", "-e", "fetch('http://127.0.0.1:' + process.env.PORT + '/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
 
-CMD ["python", "main.py"]
+CMD ["node", "dist/node/server/index.js"]

@@ -1,35 +1,70 @@
 # cosmos-proposal-builder
 Helps you build software upgrade proposals.
 
+The app is a React single-page app that runs entirely in the browser. A small Fastify server only serves the built files.
+
+The browser talks to two services directly:
+* **GitHub's releases API**, for the release binaries. Their checksums come from the `digest` GitHub records for each file, which exists for files uploaded since mid-2025. Older releases can't be used. Unauthenticated requests are limited to 60 per hour per network.
+* **The chain's RPC endpoint**, to estimate the upgrade height. It must allow cross-origin requests; public Cosmos RPCs generally do.
+
+Nothing is stored in the browser: the form starts fresh on every page load.
+
 ## Usage
 
-### Python
+### Node.js
 
-* This will open a browser on localhost:8080.
+Requires Node.js 24 or later.
+
 ```
-python -m pip install -r requirements.txt
-python src/main.py
+npm install
+npm run dev
 ```
+
+This serves the app with hot reload on http://localhost:3000.
+
+To run the production build:
+
+```
+npm run build
+npm start
+```
+
+This serves the app on http://localhost:3000.
 
 ### Docker
 
-* This will serve the site on localhost:8000.
+This serves the app on localhost:3000.
 ```
 docker build -t proposal-builder .
-docker run --rm -p 8000:8080 proposal-builder
+docker run --rm -p 3000:3000 proposal-builder
 ```
+
+### Development
+
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Vite dev server with hot reload |
+| `npm test` | Unit and server tests |
+| `npm run typecheck` | Type-check the frontend, server and tests |
+| `npm run lint` | ESLint |
+| `npm run build` | Build the frontend to `dist/web` and the server to `dist/node` |
+
+The code lives in three folders:
+
+* `src/shared`: the proposal, GitHub release and height-estimate logic
+* `src/web`: the React frontend
+* `src/server`: the Fastify server that serves the build
 
 ### Configuration
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `HOST` | `0.0.0.0` | Interface to listen on |
-| `PORT` | `8080` | Port to listen on |
-| `OPEN_BROWSER` | `true` (`false` in the image) | Open a browser tab on startup |
-| `BASIC_AUTH_USERNAME` | unset | Basic auth username |
-| `BASIC_AUTH_PASSWORD` | unset | Basic auth password |
+| `PORT` | `3000` | Port to listen on |
 
-Basic auth is enabled only when both `BASIC_AUTH_USERNAME` and `BASIC_AUTH_PASSWORD` are set. `/healthz` is always open.
+`/healthz` reports `{"status":"ok"}` for health checks.
+
+The app has no authentication: the server holds no data and makes no outbound requests. To restrict who can open it, add `auth_basic` to the nginx `location` block in front of it.
 
 ## Remote deployment
 
@@ -40,32 +75,24 @@ The image is built on the remote host from a clone of this repository.
    git clone https://github.com/hyphacoop/cosmos-proposal-builder.git
    cd cosmos-proposal-builder
    ```
-2. Copy `.env.deploy.example` to `.env.deploy` and set the basic auth credentials.
-3. Build and start the app:
+2. Build and start the app:
    ```
    docker compose up -d --build
    ```
-4. To update, pull the latest code and rebuild:
+3. To update, pull the latest code and rebuild:
    ```
    git pull && docker compose up -d --build
    ```
 
-The container only listens on `127.0.0.1:8080`, so nginx must handle TLS and forward requests to it. The app uses a websocket, so the proxy must pass the upgrade headers:
+Compose publishes the app only on the host's loopback interface, at `127.0.0.1:3000`, so nginx must handle TLS and forward requests to it. To use another host port, set `HOST_PORT` in the shell or in a `.env` file next to `docker-compose.yml`:
 
 ```nginx
 location / {
-    proxy_pass http://127.0.0.1:8080;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_read_timeout 86400;
+    proxy_pass http://127.0.0.1:3000;
 }
 ```
 
-To serve the app under a subpath such as `/proposal_builder`, strip the prefix with a trailing slash on `proxy_pass` and pass it to the app in `X-Forwarded-Prefix`, so the page loads its scripts and websocket from the right path:
+To serve the app under a subpath such as `/proposal_builder`, strip the prefix with a trailing slash on `proxy_pass`. The app uses relative URLs, so no other configuration is needed:
 
 ```nginx
 location = /proposal_builder {
@@ -73,18 +100,6 @@ location = /proposal_builder {
 }
 
 location /proposal_builder/ {
-    proxy_pass http://127.0.0.1:8080/;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Prefix /proposal_builder;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_read_timeout 86400;
+    proxy_pass http://127.0.0.1:3000/;
 }
 ```
-
-Run a single container: each user's session state lives in that process's memory.
-
-![Video capture of user interface](proposal-builder.gif)
